@@ -1,6 +1,6 @@
-const Resume = require("../models/resume.model");
-const mongoose = require("mongoose");
 const { generateWithFallback, parseJsonResponse } = require("../services/ai.service");
+const { isUuid } = require("../lib/validators");
+const { findLatestResumeByUser, findResumeByIdForUser } = require("../services/data.service");
 
 function toSuggestionsFromText(text) {
   return String(text || "")
@@ -30,15 +30,15 @@ async function suggestions(req, res) {
 
   let selectedResume = null;
   if (resumeId) {
-    if (!mongoose.isValidObjectId(resumeId)) {
+    if (!isUuid(resumeId)) {
       return res.status(400).json({ message: "Invalid resumeId" });
     }
-    selectedResume = await Resume.findOne({ _id: resumeId, userId }).lean();
+    selectedResume = await findResumeByIdForUser(resumeId, userId);
     if (!selectedResume) {
       return res.status(404).json({ message: "Selected resume not found" });
     }
   } else {
-    selectedResume = await Resume.findOne({ userId }).sort({ createdAt: -1 }).lean();
+    selectedResume = await findLatestResumeByUser(userId);
   }
 
   if (!selectedResume) {
@@ -53,21 +53,21 @@ async function suggestions(req, res) {
     const parsed = parseJsonResponse(text);
     if (parsed?.suggestions) {
       return res.json({
-        resumeId: selectedResume._id.toString(),
+        resumeId: selectedResume.id,
         resumeJobTitle: selectedResume.jobTitle || "",
         suggestions: parsed.suggestions,
       });
     }
     const recovered = toSuggestionsFromText(text);
     return res.json({
-      resumeId: selectedResume._id.toString(),
+      resumeId: selectedResume.id,
       resumeJobTitle: selectedResume.jobTitle || "",
       suggestions: recovered.length ? recovered : fallbackSuggestionsFromResume(selectedResume),
     });
   } 
   catch (err) {
     return res.json({
-      resumeId: selectedResume._id.toString(),
+      resumeId: selectedResume.id,
       resumeJobTitle: selectedResume.jobTitle || "",
       suggestions: fallbackSuggestionsFromResume(selectedResume),
     });

@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@supabase/supabase-js": "^2.104.1",
     "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
@@ -22,7 +23,6 @@
     "express-session": "^1.19.0",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.11.0",
-    "mongoose": "^9.2.0",
     "multer": "^2.0.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",

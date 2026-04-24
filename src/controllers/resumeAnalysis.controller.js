@@ -1,7 +1,7 @@
 const { analyzeResume } = require("../services/ai.service");
 const { extractTextFromFile } = require("../services/resumeText.service");
 const path = require("path");
-const Resume = require("../models/resume.model");
+const { createResume } = require("../services/data.service");
 
 async function analyze(req, res) {
   const { jobTitle } = req.body || {};
@@ -28,7 +28,7 @@ async function analyze(req, res) {
 
   const userId = req.user?.sub;
   if (userId) {
-    await Resume.create({
+    await createResume({
       userId,
       fileUrl,
       jobTitle,

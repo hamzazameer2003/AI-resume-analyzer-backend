@@ -1,5 +1,5 @@
 const axios = require("axios");
-const Otp = require("../models/otp.model");
+const { findOtpByEmail, markOtpVerified, upsertOtpByEmail } = require("./data.service");
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -8,11 +8,7 @@ function generateOtp() {
 async function sendOtpEmail(email) {
   const otp = generateOtp();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  await Otp.findOneAndUpdate(
-    { email },
-    { code: otp, expiresAt, verified: false },
-    { upsert: true, new: true }
-  );
+  await upsertOtpByEmail(email, { code: otp, expiresAt, verified: false });
 
   if (!process.env.BREVO_API_KEY || !process.env.BREVO_FROM_EMAIL) {
     return { sent: false, otp }; // fallback for local dev
@@ -48,12 +44,11 @@ async function sendOtpEmail(email) {
 }
 
 async function verifyOtpCode(email, otp) {
-  const entry = await Otp.findOne({ email });
+  const entry = await findOtpByEmail(email);
   if (!entry) return false;
   if (entry.expiresAt.getTime() < Date.now()) return false;
   if (entry.code !== otp) return false;
-  entry.verified = true;
-  await entry.save();
+  await markOtpVerified(email);
   return true;
 }
 

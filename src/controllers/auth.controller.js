@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const User = require("../models/user.model");
 const { sendOtpEmail, verifyOtpCode } = require("../services/otp.service");
+const { createUser, findUserByEmail, updateUserByEmail } = require("../services/data.service");
 
 async function signup(req, res) {
   const { name, email, password, confirmPassword } = req.body || {};
@@ -14,21 +14,22 @@ async function signup(req, res) {
     return res.status(400).json({ message: "Passwords do not match" });
   }
 
-  const existing = await User.findOne({ email: normalizedEmail });
+  const existing = await findUserByEmail(normalizedEmail);
   if (existing) {
     if (existing.isEmailVerified) {
       return res.status(400).json({ message: "Email already in use" });
     }
 
-    existing.name = name;
-    existing.passwordHash = await bcrypt.hash(password, 10);
-    await existing.save();
+    await updateUserByEmail(normalizedEmail, {
+      name,
+      passwordHash: await bcrypt.hash(password, 10),
+    });
     await sendOtpEmail(normalizedEmail);
     return res.json({ message: "Account exists but unverified. New OTP sent.", email: normalizedEmail });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  await User.create({ name, email: normalizedEmail, passwordHash, isEmailVerified: false });
+  await createUser({ name, email: normalizedEmail, passwordHash, isEmailVerified: false });
 
   await sendOtpEmail(normalizedEmail);
 
@@ -48,7 +49,7 @@ async function verifyOtp(req, res) {
     return res.status(400).json({ message: "Invalid OTP" });
   }
 
-  await User.updateOne({ email: normalizedEmail }, { isEmailVerified: true });
+  await updateUserByEmail(normalizedEmail, { isEmailVerified: true });
   return res.json({ message: "Email verified" });
 }
 
@@ -60,7 +61,7 @@ async function login(req, res) {
     return res.status(400).json({ message: "Email and password are required" });
   }
 
-  const user = await User.findOne({ email: normalizedEmail });
+  const user = await findUserByEmail(normalizedEmail);
   if (!user || !user.passwordHash) {
     return res.status(400).json({ message: "Invalid credentials" });
   }
@@ -73,7 +74,7 @@ async function login(req, res) {
   }
 
   const token = jwt.sign(
-    { sub: user._id.toString(), email: user.email },
+    { sub: user.id, email: user.email },
     process.env.JWT_SECRET || "dev-secret",
     { expiresIn: "7d" }
   );
@@ -84,23 +85,24 @@ async function login(req, res) {
 function googleCallback(req, res) {
   const user = req.user || {};
   return (async () => {
-    if (!user.email) {
+    const normalizedEmail = String(user.email || "").trim().toLowerCase();
+    if (!normalizedEmail) {
       return res.status(400).json({ message: "Google account missing email" });
     }
 
-    const existing = await User.findOne({ email: user.email });
+    const existing = await findUserByEmail(normalizedEmail);
     let savedUser = existing;
     if (!existing) {
-      savedUser = await User.create({
+      savedUser = await createUser({
         name: user.name || "Google User",
-        email: user.email,
+        email: normalizedEmail,
         googleId: user.googleId,
         isEmailVerified: true,
       });
     }
 
     const token = jwt.sign(
-      { sub: savedUser._id.toString(), email: savedUser.email },
+      { sub: savedUser.id, email: savedUser.email },
       process.env.JWT_SECRET || "dev-secret",
       { expiresIn: "7d" }
     );

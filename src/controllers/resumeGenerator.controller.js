@@ -1,6 +1,6 @@
 const { generateResumePdf } = require("../services/pdf.service");
 const { rewriteLongFields, expandShortFields } = require("../services/ai.service");
-const ResumeProfile = require("../models/resumeProfile.model");
+const { createResumeProfile } = require("../services/data.service");
 
 async function generate(req, res) {
   const payload = req.body || {};
@@ -26,7 +26,7 @@ async function generate(req, res) {
 
   const userId = req.user?.sub;
   if (userId) {
-    await ResumeProfile.create({
+    await createResumeProfile({
       userId,
       ...payload,
       aiRewrite: normalized.aiRewrite,

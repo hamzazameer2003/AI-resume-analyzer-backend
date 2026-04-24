@@ -1,6 +1,6 @@
 const { getTrendingJobs } = require("../services/trendingJobs.service");
-const Resume = require("../models/resume.model");
-const mongoose = require("mongoose");
+const { isUuid } = require("../lib/validators");
+const { findLatestResumeByUser, findResumeByIdForUser } = require("../services/data.service");
 
 const STOPWORDS = new Set([
   "the","and","for","with","from","that","this","your","role","jobs","job","analysis","resume","skill","skills",
@@ -54,15 +54,15 @@ async function list(req, res) {
 
   let selectedResume = null;
   if (resumeId) {
-    if (!mongoose.isValidObjectId(resumeId)) {
+    if (!isUuid(resumeId)) {
       return res.status(400).json({ message: "Invalid resumeId" });
     }
-    selectedResume = await Resume.findOne({ _id: resumeId, userId }).lean();
+    selectedResume = await findResumeByIdForUser(resumeId, userId);
     if (!selectedResume) {
       return res.status(404).json({ message: "Selected resume not found" });
     }
   } else {
-    selectedResume = await Resume.findOne({ userId }).sort({ createdAt: -1 }).lean();
+    selectedResume = await findLatestResumeByUser(userId);
   }
 
   const data = await getTrendingJobs();
@@ -76,7 +76,7 @@ async function list(req, res) {
     .slice(0, 12);
 
   return res.json({
-    resumeId: selectedResume._id.toString(),
+    resumeId: selectedResume.id,
     resumeJobTitle: selectedResume.jobTitle || "",
     jobs: rankedJobs,
   });
