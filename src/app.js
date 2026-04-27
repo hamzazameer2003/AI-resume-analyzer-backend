@@ -33,6 +33,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "ok", service: "ai-resume-analyzer-backend" });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/resume-analysis", resumeAnalysisRoutes);
 app.use("/api/resume-generator", resumeGeneratorRoutes);
