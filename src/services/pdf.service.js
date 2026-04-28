@@ -56,6 +56,17 @@ function splitItems(value) {
     .filter(Boolean);
 }
 
+function splitLines(value) {
+  return normalizeValue(value)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function hasCommaSeparatedValues(value) {
+  return normalizeValue(value).includes(",");
+}
+
 function drawSectionTitle(doc, title, theme) {
   doc
     .moveDown(0.5)
@@ -73,6 +84,17 @@ function renderBullets(doc, items, theme) {
     doc.circle(55, doc.y + 5, 2).fill(theme.bullet);
     doc.fillColor(theme.bodyText).text(item, 65, doc.y, { width: 470 });
     doc.moveDown(0.4);
+  });
+}
+
+function renderParagraphLines(doc, value, theme) {
+  const lines = splitLines(value);
+  if (!lines.length) return;
+  lines.forEach((line, index) => {
+    doc.fillColor(theme.bodyText).text(line, 50, doc.y, { width: 485, align: "left" });
+    if (index < lines.length - 1) {
+      doc.moveDown(0.3);
+    }
   });
 }
 
@@ -119,15 +141,22 @@ function renderSection(doc, key, label, data, theme) {
   }
 
   const items = splitItems(value);
-  if (["skills", "languages", "education", "certifications", "achievements"].includes(key)) {
-    if (items.length) {
+  if (["skills", "languages", "softSkills"].includes(key)) {
+    if (hasCommaSeparatedValues(value) && items.length) {
       renderBullets(doc, items, theme);
+    } else {
+      renderParagraphLines(doc, value, theme);
     }
     return;
   }
 
   if (key === "summary") {
     doc.fillColor(theme.bodyText).text(normalizeValue(value), { width: 470, align: "left" });
+    return;
+  }
+
+  if (["education", "certifications", "achievements"].includes(key)) {
+    renderParagraphLines(doc, value, theme);
     return;
   }
 
@@ -176,6 +205,7 @@ function generateResumePdf(data) {
       "certifications",
       "achievements",
       "languages",
+      "softSkills",
     ];
     const order = Array.isArray(data.sectionOrder) && data.sectionOrder.length ? data.sectionOrder : defaultOrder;
 
@@ -189,6 +219,7 @@ function generateResumePdf(data) {
       if (key === "certifications") return renderSection(doc, "certifications", "Certifications", data, theme);
       if (key === "achievements") return renderSection(doc, "achievements", "Achievements", data, theme);
       if (key === "languages") return renderSection(doc, "languages", "Languages", data, theme);
+      if (key === "soft-skills" || key === "softSkills") return renderSection(doc, "softSkills", "Soft Skills", data, theme);
       return null;
     });
 

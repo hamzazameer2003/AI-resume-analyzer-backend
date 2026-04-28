@@ -70,6 +70,7 @@ async function generate(req, res) {
     experienceLevel: payload.experienceLevel,
     experience: payload.experienceLevel === "experienced" ? payload.experience : [],
     projects: payload.experienceLevel === "fresher" ? payload.projects : [],
+    softSkills: payload.softSkills,
     sectionOrder: payload.sectionOrder,
     theme: payload.theme,
   };

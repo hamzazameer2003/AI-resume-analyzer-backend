@@ -88,6 +88,7 @@ async function generateProfessionalSummary(payload) {
 Target title: ${payload.title || ""}
 Experience level: ${payload.experienceLevel || ""}
 Skills: ${payload.skills || ""}
+Soft skills: ${payload.softSkills || ""}
 Experience: ${JSON.stringify(payload.experience || [])}
 Projects: ${JSON.stringify(payload.projects || [])}`;
   const text = await generateWithFallback(prompt);
