@@ -99,6 +99,65 @@ Projects: ${JSON.stringify(payload.projects || [])}`;
   return String(text || "").trim();
 }
 
+function clampScore(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+async function rankTrendingJobsForResume({ resume, jobs }) {
+  const analysis = resume.analysis || {};
+  const prompt = `You are ranking trending jobs for a candidate based on resume context and job-market roles.
+Return ONLY valid JSON in this shape:
+{"jobs":[{"title":"...","summary":"...","companies":["..."],"opportunities":"...","relevanceScore":0}]}
+
+Candidate target role: ${resume.jobTitle || ""}
+Stored focus keywords: ${JSON.stringify(analysis.focusKeywords || [])}
+Resume text snippet: ${String(analysis.resumeTextSnippet || "").slice(0, 3500)}
+Resume strengths: ${JSON.stringify(analysis.pros || [])}
+Resume gaps: ${JSON.stringify(analysis.cons || [])}
+Resume suggestions: ${JSON.stringify(analysis.suggestions || [])}
+
+Trending jobs to evaluate:
+${JSON.stringify(jobs)}
+
+Instructions:
+- Keep the same job titles from the provided trending jobs list.
+- relevanceScore must be 0-100 and reflect candidate fit, not just job popularity.
+- Prefer concise summaries and opportunity notes.
+- Return at most 12 jobs sorted from strongest to weakest fit.`;
+
+  const text = await generateWithFallback(prompt);
+  const parsed = parseJsonResponse(text);
+  if (!Array.isArray(parsed?.jobs)) {
+    throw new Error("AI ranking response missing jobs array");
+  }
+
+  const sourceByTitle = new Map(
+    jobs.map((job) => [String(job.title || "").toLowerCase(), job])
+  );
+
+  return parsed.jobs
+    .map((job) => {
+      const original = sourceByTitle.get(String(job.title || "").toLowerCase()) || {};
+      return {
+        ...original,
+        ...job,
+        title: job.title || original.title,
+        summary: job.summary || original.summary,
+        companies: Array.isArray(job.companies)
+          ? job.companies
+          : Array.isArray(original.companies)
+            ? original.companies
+            : [],
+        opportunities: job.opportunities || original.opportunities || "",
+        relevanceScore: clampScore(job.relevanceScore),
+      };
+    })
+    .filter((job) => job.title)
+    .slice(0, 12);
+}
+
 module.exports = {
   analyzeResume,
   rewriteLongFields,
@@ -106,4 +165,5 @@ module.exports = {
   parseJsonResponse,
   expandShortFields,
   generateProfessionalSummary,
+  rankTrendingJobsForResume,
 };

@@ -1,6 +1,7 @@
 const { getTrendingJobs } = require("../services/trendingJobs.service");
 const { isUuid } = require("../lib/validators");
 const { findLatestResumeByUser, findResumeByIdForUser } = require("../services/data.service");
+const { rankTrendingJobsForResume } = require("../services/ai.service");
 
 const STOPWORDS = new Set([
   "the","and","for","with","from","that","this","your","role","jobs","job","analysis","resume","skill","skills",
@@ -18,13 +19,15 @@ function tokenize(text) {
 function buildFocusTokens(resume) {
   const roleTokens = tokenize(resume.jobTitle || "");
   const analysis = resume.analysis || {};
+  const keywordTokens = Array.isArray(analysis.focusKeywords) ? analysis.focusKeywords : [];
   const textPool = [
     Array.isArray(analysis.pros) ? analysis.pros.join(" ") : "",
     Array.isArray(analysis.suggestions) ? analysis.suggestions.join(" ") : "",
     Array.isArray(analysis.cons) ? analysis.cons.join(" ") : "",
+    analysis.resumeTextSnippet || "",
   ].join(" ");
-  const analysisTokens = tokenize(textPool).slice(0, 30);
-  return new Set([...roleTokens, ...analysisTokens]);
+  const analysisTokens = tokenize(textPool).slice(0, 40);
+  return new Set([...roleTokens, ...keywordTokens, ...analysisTokens]);
 }
 
 function scoreJobForResume(job, resume) {
@@ -34,15 +37,20 @@ function scoreJobForResume(job, resume) {
   jobTokens.forEach((token) => {
     if (resumeTokens.has(token)) score += 2;
   });
-  // Strongly weight direct role title overlap.
   const rolePhrase = String(resume.jobTitle || "").toLowerCase();
   const jobTitle = String(job.title || "").toLowerCase();
   if (rolePhrase && jobTitle.includes(rolePhrase)) score += 12;
-  const roleKeywords = tokenize(rolePhrase);
-  roleKeywords.forEach((kw) => {
+  tokenize(rolePhrase).forEach((kw) => {
     if (jobTitle.includes(kw)) score += 4;
   });
-  return score;
+  return Math.max(0, Math.min(100, score));
+}
+
+function rankJobsWithFallback(jobs, resume) {
+  return jobs
+    .map((job) => ({ ...job, relevanceScore: scoreJobForResume(job, resume) }))
+    .sort((a, b) => b.relevanceScore - a.relevanceScore || String(a.title).localeCompare(String(b.title)))
+    .slice(0, 12);
 }
 
 async function list(req, res) {
@@ -70,10 +78,16 @@ async function list(req, res) {
     return res.json({ resumeId: null, resumeJobTitle: "", jobs: data });
   }
 
-  const rankedJobs = data
-    .map((job) => ({ ...job, relevanceScore: scoreJobForResume(job, selectedResume) }))
-    .sort((a, b) => b.relevanceScore - a.relevanceScore || String(a.title).localeCompare(String(b.title)))
-    .slice(0, 12);
+  let rankedJobs = [];
+  try {
+    rankedJobs = await rankTrendingJobsForResume({ resume: selectedResume, jobs: data });
+  } catch (err) {
+    rankedJobs = rankJobsWithFallback(data, selectedResume);
+  }
+
+  if (!rankedJobs.length) {
+    rankedJobs = rankJobsWithFallback(data, selectedResume);
+  }
 
   return res.json({
     resumeId: selectedResume.id,
