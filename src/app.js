@@ -3,6 +3,7 @@ const cors = require("cors");
 const session = require("express-session");
 const passport = require("passport");
 const { configurePassport } = require("./utils/passport");
+const { ensureUploadsDir, uploadsDir } = require("./utils/upload");
 
 const authRoutes = require("./routes/auth.routes");
 const resumeAnalysisRoutes = require("./routes/resumeAnalysis.routes");
@@ -10,15 +11,15 @@ const resumeGeneratorRoutes = require("./routes/resumeGenerator.routes");
 const trendingJobsRoutes = require("./routes/trendingJobs.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const careerRoutes = require("./routes/career.routes");
-const path = require("path");
 
 const app = express();
 configurePassport();
+ensureUploadsDir();
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/uploads", express.static(uploadsDir));
 app.use(
   session({
     secret: process.env.JWT_SECRET || "dev-secret",
