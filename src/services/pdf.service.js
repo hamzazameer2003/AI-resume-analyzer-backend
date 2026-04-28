@@ -4,26 +4,32 @@ const THEMES = {
   midnight: {
     headerBg: "#0f172a",
     headerText: "#f8fafc",
-    headerSub: "#cbd5f5",
-    divider: "#e2e8f0",
+    headerSub: "#cbd5e1",
+    sectionTitle: "#1e293b",
+    divider: "#cbd5e1",
     bodyText: "#0f172a",
-    bullet: "#94a3b8",
+    bullet: "#475569",
+    metaText: "#64748b",
   },
   ember: {
     headerBg: "#1f1300",
     headerText: "#fff7ed",
     headerSub: "#fed7aa",
-    divider: "#fbd6b3",
-    bodyText: "#1f1300",
-    bullet: "#fb923c",
+    sectionTitle: "#9a3412",
+    divider: "#fdba74",
+    bodyText: "#431407",
+    bullet: "#ea580c",
+    metaText: "#9a3412",
   },
   ocean: {
     headerBg: "#0b1f2a",
     headerText: "#e0f2fe",
     headerSub: "#bae6fd",
-    divider: "#cbd5e1",
-    bodyText: "#0b1f2a",
-    bullet: "#38bdf8",
+    sectionTitle: "#0f4c5c",
+    divider: "#7dd3fc",
+    bodyText: "#082f49",
+    bullet: "#0284c7",
+    metaText: "#0369a1",
   },
 };
 
@@ -43,11 +49,18 @@ function normalizeValue(value) {
   return String(value);
 }
 
+function splitItems(value) {
+  return normalizeValue(value)
+    .split(/\r?\n|,\s*/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function drawSectionTitle(doc, title, theme) {
   doc
     .moveDown(0.5)
     .fontSize(11)
-    .fillColor(theme.headerSub)
+    .fillColor(theme.sectionTitle)
     .text(title.toUpperCase(), { letterSpacing: 1 });
   doc.moveDown(0.3);
   doc.strokeColor(theme.divider).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
@@ -55,17 +68,43 @@ function drawSectionTitle(doc, title, theme) {
   doc.fillColor(theme.bodyText);
 }
 
-function renderList(doc, value, theme) {
-  if (!value) return;
-  const items = normalizeValue(value)
-    .split(/\r?\n|,\s*/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (!items.length) return;
+function renderBullets(doc, items, theme) {
   items.forEach((item) => {
     doc.circle(55, doc.y + 5, 2).fill(theme.bullet);
-    doc.fillColor(theme.bodyText).text(item, 65, doc.y);
+    doc.fillColor(theme.bodyText).text(item, 65, doc.y, { width: 470 });
     doc.moveDown(0.4);
+  });
+}
+
+function isTimelineEntry(entry) {
+  return Boolean(entry && typeof entry === "object" && !Array.isArray(entry) && (entry.title || entry.description));
+}
+
+function renderTimelineSection(doc, value, theme) {
+  const entries = Array.isArray(value) ? value.filter(isTimelineEntry) : [];
+  if (!entries.length) return;
+
+  entries.forEach((entry, index) => {
+    const title = String(entry.title || "").trim();
+    const description = String(entry.description || "").trim();
+    const dates = [entry.startDate, entry.endDate].map((item) => String(item || "").trim()).filter(Boolean).join(" - ");
+
+    if (title) {
+      doc.font("Helvetica-Bold").fillColor(theme.bodyText).text(title, { width: 470 });
+      doc.font("Helvetica");
+    }
+    if (dates) {
+      doc.moveDown(0.1);
+      doc.fontSize(10).fillColor(theme.metaText).text(dates, { width: 470 });
+      doc.fontSize(12);
+    }
+    if (description) {
+      doc.moveDown(0.2);
+      doc.fillColor(theme.bodyText).text(description, { width: 470, align: "left" });
+    }
+    if (index < entries.length - 1) {
+      doc.moveDown(0.8);
+    }
   });
 }
 
@@ -73,19 +112,28 @@ function renderSection(doc, key, label, data, theme) {
   const value = data[key];
   if (!value) return;
   drawSectionTitle(doc, label, theme);
-  if (["skills", "languages"].includes(key)) {
-    const items = normalizeValue(value)
-      .split(/\r?\n|,\s*/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    items.forEach((item) => {
-      doc.circle(55, doc.y + 5, 2).fill(theme.bullet);
-      doc.fillColor(theme.bodyText).text(item, 65, doc.y);
-      doc.moveDown(0.4);
-    });
+
+  if (key === "experience" || key === "projects") {
+    renderTimelineSection(doc, value, theme);
     return;
   }
-  renderList(doc, value, theme);
+
+  const items = splitItems(value);
+  if (["skills", "languages", "education", "certifications", "achievements"].includes(key)) {
+    if (items.length) {
+      renderBullets(doc, items, theme);
+    }
+    return;
+  }
+
+  if (key === "summary") {
+    doc.fillColor(theme.bodyText).text(normalizeValue(value), { width: 470, align: "left" });
+    return;
+  }
+
+  if (items.length) {
+    renderBullets(doc, items, theme);
+  }
 }
 
 function generateResumePdf(data) {
@@ -102,7 +150,7 @@ function generateResumePdf(data) {
     doc
       .fontSize(11)
       .fillColor(theme.headerSub)
-      .text([data.title, data.location].filter(Boolean).join(" • "), 50, 65, {
+      .text([data.title, data.location].filter(Boolean).join(" | "), 50, 65, {
         width: 500,
       });
     doc
@@ -117,7 +165,7 @@ function generateResumePdf(data) {
       );
 
     doc.moveDown(4);
-    doc.fillColor(theme.bodyText);
+    doc.fillColor(theme.bodyText).font("Helvetica").fontSize(12);
 
     const defaultOrder = [
       "summary",

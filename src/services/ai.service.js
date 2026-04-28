@@ -83,10 +83,26 @@ async function expandShortFields(payload) {
   }
 }
 
+async function generateProfessionalSummary(payload) {
+  const prompt = `Write a concise, professional resume summary in 2-4 sentences. Return ONLY valid JSON in this shape: {"summary":"..."}.
+Target title: ${payload.title || ""}
+Experience level: ${payload.experienceLevel || ""}
+Skills: ${payload.skills || ""}
+Experience: ${JSON.stringify(payload.experience || [])}
+Projects: ${JSON.stringify(payload.projects || [])}`;
+  const text = await generateWithFallback(prompt);
+  const parsed = parseJsonResponse(text);
+  if (parsed?.summary) {
+    return parsed.summary;
+  }
+  return String(text || "").trim();
+}
+
 module.exports = {
   analyzeResume,
   rewriteLongFields,
   generateWithFallback,
   parseJsonResponse,
   expandShortFields,
+  generateProfessionalSummary,
 };
